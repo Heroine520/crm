@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:aop="http://www.springframework.org/schema/aop"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:tx="http://www.springframework.org/schema/tx"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans 
+	http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/aop 
+		http://www.springframework.org/schema/aop/spring-aop.xsd
+		http://www.springframework.org/schema/context 
+		http://www.springframework.org/schema/context/spring-context.xsd
+		http://www.springframework.org/schema/tx 
+		http://www.springframework.org/schema/tx/spring-tx.xsd">
+		<!--配置数据源 BasicDataSource  -->
+		<bean id="ds" class="org.apache.commons.dbcp.BasicDataSource">
+			<property name="driverClassName" value="com.mysql.jdbc.Driver"></property>
+			<property name="url" value="jdbc:mysql:///myschool"></property>
+			<property name="username" value="root"></property>
+			<property name="password" value="123456"></property>
+		</bean>
+		
+		<!--配置SessionFactory  -->
+		<bean id="sf" class="org.springframework.orm.hibernate3.LocalSessionFactoryBean">
+			<!--引用数据源  -->
+			<property name="dataSource" ref="ds"></property>
+			<!--读取映射文件  -->
+			<property name="mappingResources">
+				<list>
+					<value>pojo/Student.hbm.xml</value>
+				</list>
+			</property>
+		</bean>
+		
+		<!--Spring提供了模板类包含增删改查的方法  -->
+		<bean id="HibernateTemplate" class="org.springframework.orm.hibernate3.HibernateTemplate">
+			<!--引用SessionFactory  -->
+			<property name="sessionFactory" ref="sf"></property>
+		</bean>
+		
+		<!--事务的传播机制 加Service层加入事务处理
+			1.配置事务管理类 HibernateTransactionManager
+			2.配置传播机制 tx:advice 不同业务方法用不同的事务处理方式
+			3.配置aop切面 将事务加入到业务逻辑层  
+		-->
+		<bean id="txManager" class="org.springframework.orm.hibernate3.HibernateTransactionManager">
+			<property name="sessionFactory" ref="sf"></property>
+		</bean>
+		<!--由事务管理类对不同名称的方法进行事务管理  -->
+		<tx:advice id="txAdvice" transaction-manager="txManager">
+			<tx:attributes>
+				<!--查询方法 service层的查询方法必须以find开头  -->
+				<tx:method name="find" read-only="true"/>
+				<!--增删该查必须使用事务  -->
+				<tx:method name="add*" propagation="REQUIRED"/>
+				<tx:method name="del*" propagation="REQUIRED"/>
+				<tx:method name="mod*" propagation="REQUIRED"/>
+				<!--get和set方法 不需要事务  -->
+				<tx:method name="get" propagation="NEVER"/>
+				<tx:method name="set" propagation="NEVER"/>
+			</tx:attributes>
+		</tx:advice>
+		
+		<!--配置切面 将事务加入到service层  service service.impl-->
+		<aop:config>
+			<!--配置切点  -->
+			<aop:pointcut expression="execution(* service..*.*(..))" id="servicePoinCut"/>
+			<!--将事务与业务层代码绑定  -->
+			<aop:advisor advice-ref="txAdvice" pointcut-ref="servicePoinCut"/>
+		</aop:config>
+		
+		<!--配置StudnetDaoImpl  -->
+		<bean id="stuDao" class="dao.impl.StudentDaoImpl">
+			<property name="ht" ref="HibernateTemplate"></property>
+		</bean>
+		
+		<!--配置StudentServiceImpl  -->
+		<bean id="stuService" class="service.impl.StudentServiceImpl">
+			<property name="studentDao" ref="stuDao"></property>
+		</bean>
+		
+		
+		<!--配置StudentAction 每个action都是多个实例-->
+		<bean id="stuAction" class="action.StudentAction" scope="prototype">
+			<!--注入userService对象  -->
+			<property name="studentService" ref="stuService"></property>
+		</bean>
+		
+</beans>
